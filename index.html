@@ -271,13 +271,27 @@ extrude(rect(1085,330,1104,349),0,38,M.glass,M.steel,'wh');           // glass s
 extrude(rect(868,577,972,602),0,4.5,M.grey,M.roof,'common');
 
 // 1F loading deck + ramp
-const DECK=10;
+const DECK=10, DECK2=21;
 extrude(rect(636,467,1045,560),DECK-1,DECK,M.concrete,M.deckTop,'deck');
 extrude(rect(740,560,1045,605),DECK-1,DECK,M.concrete,M.deckTop,'deck');
 for(let px=652;px<=1040;px+=36) for(const py of [525,560,600]){ if(py===600&&px<745) continue; box(.9,DECK-1,.9,X(px),(DECK-1)/2,Z(py),M.concrete); }
 [[636,467,636,560],[636,560,740,560],[740,605,1045,605],[1045,505,1045,605]].forEach(s=>bar(...s,DECK+.55,1.1,.3,M.concrete));
-extrude(rect(636,467,1045,500),DECK+9.5,DECK+10.2,M.timber,M.roof,'deck');    // deck canopy
-for(let px=660;px<=1040;px+=46) box(.5,9.5,.5,X(px),DECK+4.75,Z(498),M.steel);
+// 2F loading deck + west landing, stacked over the 1F deck
+extrude(rect(636,467,1045,560),DECK2-1,DECK2,M.concrete,M.deckTop,'deck2');
+extrude(rect(636,560,740,605),DECK2-1,DECK2,M.concrete,M.deckTop,'deck2');
+for(let px=652;px<=1040;px+=36) box(.9,DECK2-1-DECK,.9,X(px),DECK+(DECK2-1-DECK)/2,Z(558),M.concrete);
+for(const px of [640,690,736]) box(.9,DECK2-1,.9,X(px),(DECK2-1)/2,Z(566),M.concrete);
+[[636,467,636,605],[636,605,740,605],[740,560,1045,560],[1045,467,1045,560]].forEach(s=>bar(...s,DECK2+.55,1.1,.3,M.concrete));
+extrude(rect(636,467,1045,500),DECK2+9.5,DECK2+10.2,M.timber,M.roof,'deck2');   // 2F canopy
+for(let px=660;px<=1040;px+=46) box(.5,9.5,.5,X(px),DECK2+4.75,Z(498),M.steel);
+// ramp to 2F: climbs west from the east end of the 1F deck to the 2F landing
+{ const x0=X(1045),x1=X(740),zc=Z(582.5),w=32*S,L=Math.hypot(x0-x1,DECK2-DECK),a=Math.atan2(DECK2-DECK,x0-x1);
+  const r=box(L,.8,w,(x0+x1)/2,(DECK+DECK2)/2-.4,zc,M.deckTop,'ramp2'); r.rotation.z=-a;
+  [-1,1].forEach(sd=>{const p=box(L,1.1,.3,(x0+x1)/2,(DECK+DECK2)/2+.55,zc+sd*(w/2-.15),M.concrete,'ramp2');p.rotation.z=-a;});
+  for(let t=.25;t<.95;t+=.15){const h=(DECK2-DECK)*t-.8; [-1,1].forEach(sd=>box(.6,h,.6,x0+t*(x1-x0),DECK+h/2,zc+sd*(w/2-.4),M.concrete));} }
+// floor lines so the three storeys read on the facade
+[DECK,DECK2].forEach(h=>{bar(636,205,636,467,h,.6,.35,M.concrete,[-.2,0]); bar(1085,165,1085,467,h,.6,.35,M.concrete,[.2,0]); bar(680,205,898,205,h,.6,.35,M.concrete,[0,-.2]); bar(898,165,1085,165,h,.6,.35,M.concrete,[0,-.2]);});
+bar(680,467,1045,467,DECK+4.6,.5,.35,M.steel,[0,.2]); bar(680,467,1045,467,DECK2+4.6,.5,.35,M.steel,[0,.2]);
 { const x0=X(415),x1=X(740),zc=Z(589),w=(605-573)*S,L=Math.hypot(x1-x0,DECK),a=Math.atan2(DECK,x1-x0);
   const r=box(L,.8,w,(x0+x1)/2,DECK/2-.4,zc,M.deckTop,'ramp'); r.rotation.z=a;
   [-1,1].forEach(sd=>{const p=box(L,1.1,.3,(x0+x1)/2,DECK/2+.55,zc+sd*(w/2-.15),M.concrete,'ramp');p.rotation.z=a;});
@@ -327,6 +341,7 @@ function truck(px,py,y,cab,rotY){ const g=new THREE.Group();
 [300,334,392,452,520,556].forEach((px,i)=>truck(px,446,0,i%2?tMat.red:tMat.white));
 [700,770,848,930,1000].forEach((px,i)=>truck(px,469,0,i%2?tMat.white:tMat.red));
 [688,760,820,905,975].forEach((px,i)=>truck(px,469,DECK,i%3?tMat.white:tMat.red));
+[728,820,912,1004].forEach((px,i)=>truck(px,469,DECK2,i%2?tMat.red:tMat.white));
 truck(400,540,0,tMat.white,-Math.PI/2);
 
 // ---------- selection ----------
@@ -334,10 +349,12 @@ const INFO={
   asrs:{n:'ASRS',r:[['Footprint (GF)','4,365 m²'],['Height (est.)','38 m'],['Lot','ASRS lot']],p:'Automated storage and retrieval block with a stair tower on the east end.'},
   staging:{n:'Staging Area 1 & 2',r:[['Per floor','1,988 m²'],['Floors','GF + 1F'],['Sub-total (with ASRS)','8,341 m²'],['Height (est.)','15 m']],p:'Two-storey staging in front of the ASRS, docks along the south face.'},
   office1:{n:'M&E / Office',r:[['Per floor','691 m²'],['GF','M&E area'],['1F','Office']],p:'Splayed corner block on the west side of the ASRS lot.'},
-  wh:{n:'Warehouse 1',r:[['Per floor','13,108 m²'],['Floors','GF + 1F + 2F'],['Sub-total','39,324 m²'],['Height (est.)','34.5 m']],p:'Ground-floor docks below, first-floor docks reached by the ramp. The added 2F has no dock access of its own in this model.'},
+  wh:{n:'Warehouse 1',r:[['Per floor','13,108 m²'],['Floors','GF + 1F + 2F'],['Sub-total','39,324 m²'],['Height (est.)','34.5 m']],p:'GF docks at ground level; 1F and 2F docks on stacked loading decks, each reached by its own ramp.'},
   me:{n:'M&E Area',r:[['Area','280 m²'],['Height (est.)','8 m']],p:'Plant area on the north side of Warehouse 1.'},
   office2:{n:'Office lobby & mezz. offices',r:[['Office lobby','73 m²'],['Mezz. office 1','731 m²'],['Mezz. office 2','731 m²']],p:'Placement of the mezzanine offices is approximate.'},
-  deck:{n:'1F loading deck',r:[['Apron depth','30 m'],['Deck level (est.)','10 m'],['Canopy clear (est.)','9.5 m']],p:'Elevated first-floor loading apron in front of Warehouse 1.'},
+  deck:{n:'1F loading deck',r:[['Apron depth','30 m'],['Deck level (est.)','10 m'],['Clear under 2F deck','10 m']],p:'Elevated first-floor loading apron in front of Warehouse 1, reached by the ramp from the entrance.'},
+  deck2:{n:'2F loading deck',r:[['Apron depth','30 m'],['Deck level (est.)','21 m'],['Canopy clear (est.)','9.5 m']],p:'Second-floor loading apron stacked over the 1F deck, with a landing at the west end where the 2F ramp arrives.'},
+  ramp2:{n:'Ramp to 2F',r:[['Length (approx.)','99 m'],['Rise','10 m → 21 m'],['Grade (est.)','≈ 11%']],p:'Starts at the east end of the 1F deck and climbs west, passing over the top of the 1F ramp, to the 2F landing.'},
   ramp:{n:'Ramp to 1F',r:[['Length (approx.)','105 m'],['Width (approx.)','10 m'],['Grade (est.)','≈ 9.5%']],p:'Single ramp from the entrance road up to the first-floor deck.'},
   common:{n:'Common facilities',r:[['Area','242 m²']],p:'Sits under the 1F deck.'},
   guard:{n:'Guard house',r:[['Area','17 m²']],p:'At the ingress / egress gate off Jalan Persiaran Teknologi.'},
@@ -359,7 +376,7 @@ canvas.addEventListener('pointerup',e=>{ if(!down||Math.hypot(e.clientX-down[0],
 // ---------- labels ----------
 const LABELS=[['ASRS','38 m',427,41,314],['Staging 1 & 2','2 storeys',427,16.5,413],['M&E / Office','',257,13.5,420],
   ['Warehouse 1','3 storeys',860,37,330],['M&E Area','',850,9.5,190],['Office lobby','',1065,17.5,475],
-  ['1F loading deck','',830,21,560],['Ramp to 1F','',530,5.5,589],['Guard house','',310,5,588],['TNB','',253,5.5,590],['Ingress / egress','',215,1.5,588]];
+  ['1F loading deck','',690,12.5,550],['2F loading deck','',830,32.5,520],['Ramp to 2F','',930,17,583],['Ramp to 1F','',530,5.5,589],['Guard house','',310,5,588],['TNB','',253,5.5,590],['Ingress / egress','',215,1.5,588]];
 const tagsEl=document.getElementById('tags');
 const tags=LABELS.map(([t,s,px,h,py])=>{const el=document.createElement('div');el.className='tag';el.innerHTML=t+(s?`<small>${s}</small>`:'');tagsEl.appendChild(el);return {el,v:new THREE.Vector3(X(px),h,Z(py))};});
 const tmp=new THREE.Vector3();
