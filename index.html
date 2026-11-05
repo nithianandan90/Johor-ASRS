@@ -93,7 +93,7 @@ td{font-family:var(--f-mono)} td:first-child{font-family:var(--f-body);color:var
         <div class="views" id="views">
           <button class="v" type="button" data-view="aerial" aria-pressed="true">Aerial, south-east</button>
           <button class="v" type="button" data-view="street">Street, from the road</button>
-          <button class="v" type="button" data-view="deck">Ramp &amp; 1F deck</button>
+          <button class="v" type="button" data-view="deck">Ramps &amp; loading decks</button>
           <button class="v" type="button" data-view="plan">Plan view</button>
         </div>
       </section>
@@ -104,6 +104,7 @@ td{font-family:var(--f-mono)} td:first-child{font-family:var(--f-body);color:var
           <label><input type="checkbox" id="lyrPlan">Floor plan on ground</label>
           <label><input type="checkbox" id="lyrTrucks" checked>Trucks</label>
           <label><input type="checkbox" id="lyrTrees" checked>Landscape</label>
+          <label><input type="checkbox" id="lyrBomba" checked>Bomba road</label>
         </div>
       </section>
       <section>
@@ -120,10 +121,10 @@ td{font-family:var(--f-mono)} td:first-child{font-family:var(--f-body);color:var
           <thead><tr><th>Lot</th><th>Land m²</th><th>GFA m²</th><th>Plinth</th></tr></thead>
           <tbody>
             <tr><td>ASRS</td><td>15,309</td><td>9,032</td><td>47.37%</td></tr>
-            <tr><td>Warehouse</td><td>31,489</td><td>41,157</td><td>45.13%</td></tr>
+            <tr><td>Warehouse</td><td>31,489</td><td>39,400</td><td>45.13%</td></tr>
           </tbody>
         </table>
-        <p class="lede note">Warehouse GFA includes the added 2F (+13,108 m²). The Rev 1 plan shows 28,049 m² for two storeys.</p>
+        <p class="lede note">Warehouse GFA includes the added 2F, set back one grid (≈ 11,351 m², estimated). The Rev 1 plan shows 28,049 m² for two storeys.</p>
       </section>
     </div>
     <div class="foot">Jurutera Perunding YLT · Drg. KC JB Rev 1 · Scale 1 px ≈ 0.32 m</div>
@@ -238,6 +239,25 @@ const planMesh=new THREE.Mesh(new THREE.PlaneGeometry(1300*S,919*S),new THREE.Me
 planMesh.rotation.x=-Math.PI/2; planMesh.position.set(X(650),.08,Z(459.5)); planMesh.visible=false; planMesh.renderOrder=1; scene.add(planMesh);
 new THREE.TextureLoader().load(PLAN_SRC,t=>{t.encoding=THREE.sRGBEncoding;t.anisotropy=maxAniso;planMesh.material.map=t;planMesh.material.needsUpdate=true;});
 
+// ---------- bomba (fire engine access) road, traced from the red dashed line on the plan ----------
+const bombaGroup=new THREE.Group(); scene.add(bombaGroup);
+{ const W=6.5/S;
+  const loops=[[[227.5,252.5],[589,205],[589,530],[227.5,530]],
+               [[617.5,197.5],[1130,130],[1130,305],[1095,305],[1095,612.5],[617.5,612.5]]];
+  const roadM=new THREE.MeshStandardMaterial({color:0x8f4a40,roughness:.95});
+  const lineM=new THREE.MeshBasicMaterial({color:0xd8322a});
+  function inset(pts,d){ let a=0; const n=pts.length;
+    pts.forEach((p,i)=>{const q=pts[(i+1)%n];a+=p[0]*q[1]-q[0]*p[1];}); const sg=a>0?1:-1;
+    const ln=pts.map((p,i)=>{const q=pts[(i+1)%n],dx=q[0]-p[0],dy=q[1]-p[1],L=Math.hypot(dx,dy);return [p[0]-dy/L*sg*d,p[1]+dx/L*sg*d,dx,dy];});
+    return pts.map((_,i)=>{const A=ln[(i-1+n)%n],B=ln[i],den=A[2]*B[3]-A[3]*B[2],t=((B[0]-A[0])*B[3]-(B[1]-A[1])*B[2])/den;return [A[0]+A[2]*t,A[1]+A[3]*t];}); }
+  loops.forEach(L=>{ const s=new THREE.Shape(),h=new THREE.Path();
+    L.forEach(([px,py],i)=>i?s.lineTo(X(px),-Z(py)):s.moveTo(X(px),-Z(py)));
+    inset(L,W).forEach(([px,py],i)=>i?h.lineTo(X(px),-Z(py)):h.moveTo(X(px),-Z(py)));
+    s.holes.push(h);
+    const m=new THREE.Mesh(new THREE.ShapeGeometry(s),roadM); m.rotation.x=-Math.PI/2; m.position.y=.05; m.receiveShadow=true; bombaGroup.add(m); reg(m,'bomba');
+    L.forEach((p,i)=>{const q=L[(i+1)%L.length],x1=X(p[0]),z1=Z(p[1]),x2=X(q[0]),z2=Z(q[1]),len=Math.hypot(x2-x1,z2-z1),ang=Math.atan2(z2-z1,x2-x1);
+      for(let d=1.5;d<len-1.5;d+=6){const dash=new THREE.Mesh(new THREE.PlaneGeometry(3,.35),lineM);dash.rotation.x=-Math.PI/2;dash.rotation.z=-ang;dash.position.set(x1+(x2-x1)*d/len,.07,z1+(z2-z1)*d/len);bombaGroup.add(dash);}}); }); }
+
 // ---------- ASRS lot ----------
 extrude(rect(300,245,578,383),0,38,M.wood,M.roof,'asrs');
 extrude(rect(277,245,300,383),0,38,M.black,M.roof,'asrs');
@@ -259,12 +279,14 @@ extrude(rect(578,255,595,272),0,40,M.glass,M.steel,'asrs');          // stair to
 }
 
 // ---------- Warehouse lot ----------
-extrude(rect(636,205,680,467),0,34.5,M.wood,M.roof,'wh');
-extrude([[680,205],[898,205],[898,165],[1085,165],[1085,467],[680,467]],0,34.5,M.black,M.roof,'wh');
+extrude(rect(636,205,680,467),0,21,M.wood,M.roof,'wh');
+extrude(rect(636,205,680,429.5),21,34.5,M.wood,M.roof,'wh');            // 2F set back one grid (12.1 m)
+extrude([[680,205],[898,205],[898,165],[1085,165],[1085,467],[680,467]],0,21,M.black,M.roof,'wh');
+extrude([[680,205],[898,205],[898,165],[1085,165],[1085,429.5],[680,429.5]],21,34.5,M.black,M.roof,'wh');
 extrude(rect(803,175,898,205),0,8,M.grey,M.roof,'me');
-bar(690,467,1040,467,30.5,.7,.3,M.green,[0,.25]); bar(690,467,1040,467,32.1,.7,.3,M.green,[0,.25]);
-bar(636,215,636,460,30.5,.7,.3,M.green,[-.25,0]); bar(636,215,636,460,32.1,.7,.3,M.green,[-.25,0]);
-bar(1085,175,1085,440,30.5,.7,.3,M.green,[.25,0]);
+bar(690,429.5,1075,429.5,30.5,.7,.3,M.green,[0,.25]); bar(690,429.5,1075,429.5,32.1,.7,.3,M.green,[0,.25]);
+bar(636,215,636,425,30.5,.7,.3,M.green,[-.25,0]); bar(636,215,636,425,32.1,.7,.3,M.green,[-.25,0]);
+bar(1085,175,1085,425,30.5,.7,.3,M.green,[.25,0]);
 bar(680,467,1045,467,4.6,.5,.35,M.steel,[0,.2]);                    // GF dock line
 extrude(rect(1045,445,1085,505),0,16,M.office,M.roof,'office2');
 extrude(rect(1085,330,1104,349),0,38,M.glass,M.steel,'wh');           // glass stair core
@@ -273,25 +295,39 @@ extrude(rect(868,577,972,602),0,4.5,M.grey,M.roof,'common');
 // 1F loading deck + ramp
 const DECK=10, DECK2=21;
 extrude(rect(636,467,1045,560),DECK-1,DECK,M.concrete,M.deckTop,'deck');
-extrude(rect(740,560,1045,605),DECK-1,DECK,M.concrete,M.deckTop,'deck');
-for(let px=652;px<=1040;px+=36) for(const py of [525,560,600]){ if(py===600&&px<745) continue; box(.9,DECK-1,.9,X(px),(DECK-1)/2,Z(py),M.concrete); }
-[[636,467,636,560],[636,560,740,560],[740,605,1045,605],[1045,505,1045,605]].forEach(s=>bar(...s,DECK+.55,1.1,.3,M.concrete));
+extrude(rect(740,560,840,605),DECK-1,DECK,M.concrete,M.deckTop,'deck');   // 1F ramp landing / junction
+for(let px=652;px<=1040;px+=36) for(const py of [525,560,600]){ if(py===600&&(px<745||px>840)) continue; box(.9,DECK-1,.9,X(px),(DECK-1)/2,Z(py),M.concrete); }
+[[636,467,636,560],[636,560,740,560],[740,605,840,605],[840,560,840,573],[840,560,1045,560],[1045,505,1045,560]].forEach(s=>bar(...s,DECK+.55,1.1,.3,M.concrete));
 // 2F loading deck + west landing, stacked over the 1F deck
 extrude(rect(636,467,1045,560),DECK2-1,DECK2,M.concrete,M.deckTop,'deck2');
-extrude(rect(636,560,740,605),DECK2-1,DECK2,M.concrete,M.deckTop,'deck2');
 for(let px=652;px<=1040;px+=36) box(.9,DECK2-1-DECK,.9,X(px),DECK+(DECK2-1-DECK)/2,Z(558),M.concrete);
-for(const px of [640,690,736]) box(.9,DECK2-1,.9,X(px),(DECK2-1)/2,Z(566),M.concrete);
-[[636,467,636,605],[636,605,740,605],[740,560,1045,560],[1045,467,1045,560]].forEach(s=>bar(...s,DECK2+.55,1.1,.3,M.concrete));
-extrude(rect(636,467,1045,500),DECK2+9.5,DECK2+10.2,M.timber,M.roof,'deck2');   // 2F canopy
-for(let px=660;px<=1040;px+=46) box(.5,9.5,.5,X(px),DECK2+4.75,Z(498),M.steel);
-// ramp to 2F: climbs west from the east end of the 1F deck to the 2F landing
-{ const x0=X(1045),x1=X(740),zc=Z(582.5),w=32*S,L=Math.hypot(x0-x1,DECK2-DECK),a=Math.atan2(DECK2-DECK,x0-x1);
-  const r=box(L,.8,w,(x0+x1)/2,(DECK+DECK2)/2-.4,zc,M.deckTop,'ramp2'); r.rotation.z=-a;
-  [-1,1].forEach(sd=>{const p=box(L,1.1,.3,(x0+x1)/2,(DECK+DECK2)/2+.55,zc+sd*(w/2-.15),M.concrete,'ramp2');p.rotation.z=-a;});
-  for(let t=.25;t<.95;t+=.15){const h=(DECK2-DECK)*t-.8; [-1,1].forEach(sd=>box(.6,h,.6,x0+t*(x1-x0),DECK+h/2,zc+sd*(w/2-.4),M.concrete));} }
+extrude(rect(636,429.5,1085,467),DECK2-.05,DECK2+.03,M.concrete,M.deckTop,'deck2');   // 2F bay over the set-back roof
+[[636,429.5,636,560],[636,560,1045,560],[1045,467,1045,523],[1045,556,1045,560],[1045,467,1085,467],[1085,429.5,1085,467]].forEach(s=>bar(...s,DECK2+.55,1.1,.3,M.concrete));
+extrude(rect(636,429.5,1045,462.5),DECK2+9.5,DECK2+10.2,M.timber,M.roof,'deck2');   // 2F canopy
+for(let px=660;px<=1040;px+=46) box(.5,9.5,.5,X(px),DECK2+4.75,Z(460.5),M.steel);
+// ramp to 2F: branches off the 1F deck past the 1F ramp landing, climbs east,
+// U-turns out to the warehouse's east building line and arrives on the 2F deck heading west
+{ const xa=X(840),xb=X(1045),zc=Z(589),w=32*S,R=8,cz=zc-R,Ls=xb-xa,Lt=Ls+Math.PI*R,hb=DECK+(DECK2-DECK)*Ls/Lt;
+  const L=Math.hypot(Ls,hb-DECK),a=Math.atan2(hb-DECK,Ls);
+  const r=box(L,.8,w,(xa+xb)/2,(DECK+hb)/2-.4,zc,M.deckTop,'ramp2'); r.rotation.z=a;
+  [-1,1].forEach(sd=>{const p=box(L,1.1,.3,(xa+xb)/2,(DECK+hb)/2+.55,zc+sd*(w/2-.15),M.concrete,'ramp2');p.rotation.z=a;});
+  for(let t=.12;t<.97;t+=.12){const h=DECK+(hb-DECK)*t-.8;[-1,1].forEach(sd=>box(.7,h,.7,xa+t*Ls,h/2,zc+sd*(w/2-.5),M.concrete));}
+  const ri=R-w/2, ro=R+w/2;
+  const slabM=new THREE.MeshStandardMaterial({color:0x74777a,roughness:.9,flatShading:true,side:THREE.DoubleSide});
+  const parM=new THREE.MeshStandardMaterial({color:0xc4c5c0,roughness:.9,flatShading:true,side:THREE.DoubleSide});
+  function arc(r0,r1,dy0,dy1,material){ const N=72,pos=[],idx=[];
+    for(let i=0;i<=N;i++){const t=i/N,al=Math.PI/2-Math.PI*t,h=hb+(DECK2-hb)*t,c=Math.cos(al),s=Math.sin(al);
+      [[r0,dy1],[r1,dy1],[r1,dy0],[r0,dy0]].forEach(([rr,dy])=>pos.push(xb+rr*c,h+dy,cz+rr*s));}
+    for(let i=0;i<N;i++)for(let k=0;k<4;k++){const p=i*4+k,q=i*4+(k+1)%4;idx.push(p,p+4,q,q,p+4,q+4);}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();
+    const m=new THREE.Mesh(g,material);m.castShadow=m.receiveShadow=true;scene.add(m);reg(m,'ramp2');}
+  arc(ri,ro,-.8,0,slabM); arc(ro-.3,ro,0,1.1,parM); arc(ri,ri+.3,0,1.1,parM);
+  for(let b=-90;b<=90;b+=30){const al=b*Math.PI/180,h=hb+(DECK2-hb)*(90-b)/180-.8;
+    box(.8,h,.8,xb+(ro+.4)*Math.cos(al),h/2,cz+(ro+.4)*Math.sin(al),M.concrete,'ramp2');
+    if(b>-90&&b<90) box(.8,h,.8,xb+(ri-.4)*Math.cos(al),h/2,cz+(ri-.4)*Math.sin(al),M.concrete,'ramp2');} }
 // floor lines so the three storeys read on the facade
 [DECK,DECK2].forEach(h=>{bar(636,205,636,467,h,.6,.35,M.concrete,[-.2,0]); bar(1085,165,1085,467,h,.6,.35,M.concrete,[.2,0]); bar(680,205,898,205,h,.6,.35,M.concrete,[0,-.2]); bar(898,165,1085,165,h,.6,.35,M.concrete,[0,-.2]);});
-bar(680,467,1045,467,DECK+4.6,.5,.35,M.steel,[0,.2]); bar(680,467,1045,467,DECK2+4.6,.5,.35,M.steel,[0,.2]);
+bar(680,467,1045,467,DECK+4.6,.5,.35,M.steel,[0,.2]); bar(680,429.5,1080,429.5,DECK2+4.6,.5,.35,M.steel,[0,.2]);
 { const x0=X(415),x1=X(740),zc=Z(589),w=(605-573)*S,L=Math.hypot(x1-x0,DECK),a=Math.atan2(DECK,x1-x0);
   const r=box(L,.8,w,(x0+x1)/2,DECK/2-.4,zc,M.deckTop,'ramp'); r.rotation.z=a;
   [-1,1].forEach(sd=>{const p=box(L,1.1,.3,(x0+x1)/2,DECK/2+.55,zc+sd*(w/2-.15),M.concrete,'ramp');p.rotation.z=a;});
@@ -341,7 +377,7 @@ function truck(px,py,y,cab,rotY){ const g=new THREE.Group();
 [300,334,392,452,520,556].forEach((px,i)=>truck(px,446,0,i%2?tMat.red:tMat.white));
 [700,770,848,930,1000].forEach((px,i)=>truck(px,469,0,i%2?tMat.white:tMat.red));
 [688,760,820,905,975].forEach((px,i)=>truck(px,469,DECK,i%3?tMat.white:tMat.red));
-[728,820,912,1004].forEach((px,i)=>truck(px,469,DECK2,i%2?tMat.red:tMat.white));
+[728,820,912,1004].forEach((px,i)=>truck(px,431.5,DECK2,i%2?tMat.red:tMat.white));
 truck(400,540,0,tMat.white,-Math.PI/2);
 
 // ---------- selection ----------
@@ -349,12 +385,13 @@ const INFO={
   asrs:{n:'ASRS',r:[['Footprint (GF)','4,365 m²'],['Height (est.)','38 m'],['Lot','ASRS lot']],p:'Automated storage and retrieval block with a stair tower on the east end.'},
   staging:{n:'Staging Area 1 & 2',r:[['Per floor','1,988 m²'],['Floors','GF + 1F'],['Sub-total (with ASRS)','8,341 m²'],['Height (est.)','15 m']],p:'Two-storey staging in front of the ASRS, docks along the south face.'},
   office1:{n:'M&E / Office',r:[['Per floor','691 m²'],['GF','M&E area'],['1F','Office']],p:'Splayed corner block on the west side of the ASRS lot.'},
-  wh:{n:'Warehouse 1',r:[['Per floor','13,108 m²'],['Floors','GF + 1F + 2F'],['Sub-total','39,324 m²'],['Height (est.)','34.5 m']],p:'GF docks at ground level; 1F and 2F docks on stacked loading decks, each reached by its own ramp.'},
+  wh:{n:'Warehouse 1',r:[['GF / 1F','13,108 m² each'],['2F (set back 1 grid)','≈ 11,351 m²'],['Sub-total','≈ 37,567 m²'],['Height (est.)','34.5 m']],p:'GF docks at ground level; 1F and 2F docks on stacked loading decks, each reached by its own ramp. The 2F face is set back one 12.1 m grid.'},
+  bomba:{n:'Bomba road',r:[['Shown width','6.5 m'],['Plan: W of warehouse','6,294 mm'],['Plan: E of warehouse','7,175 mm'],['Plan: W of ASRS block','7,500 mm'],['Plan: E of ASRS','6,500 mm']],p:'Fire engine access road, traced from the red dashed line on the plan and drawn as a band inside it.'},
   me:{n:'M&E Area',r:[['Area','280 m²'],['Height (est.)','8 m']],p:'Plant area on the north side of Warehouse 1.'},
   office2:{n:'Office lobby & mezz. offices',r:[['Office lobby','73 m²'],['Mezz. office 1','731 m²'],['Mezz. office 2','731 m²']],p:'Placement of the mezzanine offices is approximate.'},
   deck:{n:'1F loading deck',r:[['Apron depth','30 m'],['Deck level (est.)','10 m'],['Clear under 2F deck','10 m']],p:'Elevated first-floor loading apron in front of Warehouse 1, reached by the ramp from the entrance.'},
-  deck2:{n:'2F loading deck',r:[['Apron depth','30 m'],['Deck level (est.)','21 m'],['Canopy clear (est.)','9.5 m']],p:'Second-floor loading apron stacked over the 1F deck, with a landing at the west end where the 2F ramp arrives.'},
-  ramp2:{n:'Ramp to 2F',r:[['Length (approx.)','99 m'],['Rise','10 m → 21 m'],['Grade (est.)','≈ 11%']],p:'Starts at the east end of the 1F deck and climbs west, passing over the top of the 1F ramp, to the 2F landing.'},
+  deck2:{n:'2F loading deck',r:[['Dock face set back','1 grid (12.1 m)'],['Bay (face to ramp lane)','≈ 30 m'],['Deck level (est.)','21 m'],['Canopy clear (est.)','9.5 m']],p:'Second-floor loading apron stacked over the 1F deck, entered from the east end by the U-turn. About 10 m clear to the 1F deck below.'},
+  ramp2:{n:'Ramp to 2F',r:[['Straight run','≈ 66 m'],['U-turn (centreline)','≈ 25 m, R 8 m'],['U-turn outer radius','≈ 13.2 m'],['Lane width','≈ 10 m'],['Rise','10 m → 21 m'],['Grade (est.)','≈ 12%'],['Clear to ground below','9 m or more']],p:'Branches off the 1F deck about 32 m east of the 1F ramp landing, climbs east, turns out to the warehouse east building line and arrives on the 2F deck heading west.'},
   ramp:{n:'Ramp to 1F',r:[['Length (approx.)','105 m'],['Width (approx.)','10 m'],['Grade (est.)','≈ 9.5%']],p:'Single ramp from the entrance road up to the first-floor deck.'},
   common:{n:'Common facilities',r:[['Area','242 m²']],p:'Sits under the 1F deck.'},
   guard:{n:'Guard house',r:[['Area','17 m²']],p:'At the ingress / egress gate off Jalan Persiaran Teknologi.'},
@@ -375,8 +412,8 @@ canvas.addEventListener('pointerup',e=>{ if(!down||Math.hypot(e.clientX-down[0],
 
 // ---------- labels ----------
 const LABELS=[['ASRS','38 m',427,41,314],['Staging 1 & 2','2 storeys',427,16.5,413],['M&E / Office','',257,13.5,420],
-  ['Warehouse 1','3 storeys',860,37,330],['M&E Area','',850,9.5,190],['Office lobby','',1065,17.5,475],
-  ['1F loading deck','',690,12.5,550],['2F loading deck','',830,32.5,520],['Ramp to 2F','',930,17,583],['Ramp to 1F','',530,5.5,589],['Guard house','',310,5,588],['TNB','',253,5.5,590],['Ingress / egress','',215,1.5,588]];
+  ['Warehouse 1','3 storeys',900,37,360],['M&E Area','',850,9.5,190],['Office lobby','',1065,17.5,475],
+  ['1F loading deck','',690,12.5,550],['2F loading deck','30 m bay',830,23.5,500],['Bomba road','6.5 m',1112,1.5,230],['Ramp to 2F','',900,17,589],['U-turn to 2F','',1072,24,560],['Ramp to 1F','',530,5.5,589],['Guard house','',310,5,588],['TNB','',253,5.5,590],['Ingress / egress','',215,1.5,588]];
 const tagsEl=document.getElementById('tags');
 const tags=LABELS.map(([t,s,px,h,py])=>{const el=document.createElement('div');el.className='tag';el.innerHTML=t+(s?`<small>${s}</small>`:'');tagsEl.appendChild(el);return {el,v:new THREE.Vector3(X(px),h,Z(py))};});
 const tmp=new THREE.Vector3();
@@ -395,7 +432,7 @@ sunIn.addEventListener('input',()=>setSun(+sunIn.value)); setSun(10);
 const VIEWS={
   aerial:{p:[X(1240),210,Z(900)],t:[X(700),6,Z(400)]},
   street:{p:[X(110),9,Z(760)],t:[X(430),18,Z(380)]},
-  deck:{p:[X(560),36,Z(720)],t:[X(850),10,Z(520)]},
+  deck:{p:[X(760),55,Z(800)],t:[X(950),13,Z(545)]},
   plan:{p:[X(676),560,Z(402)],t:[X(676),0,Z(400)]},
 };
 let anim=null;
@@ -412,6 +449,7 @@ bind('lyrTags',on=>tagsEl.hidden=!on);
 bind('lyrPlan',on=>{planMesh.visible=on;ctxGroup.forEach(m=>m.visible=!on);});
 bind('lyrTrucks',on=>truckGroup.visible=on);
 bind('lyrTrees',on=>treeGroup.visible=on);
+bind('lyrBomba',on=>bombaGroup.visible=on);
 
 // mobile sheet toggle
 const panel=document.getElementById('panel'),tg=document.getElementById('toggle');
